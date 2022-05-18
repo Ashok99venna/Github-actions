@@ -1,0 +1,46 @@
+name: Update Github
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: "Update Github"
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        name: Checkout Code
+
+      - uses: hashicorp/setup-terraform@v1
+        name: Install terraform
+
+      - name: Terraform Init
+        run: cd github && terraform init -var aws_key=${{ secrets.AWS_KEY }} -var aws_secret=${{ secrets.AWS_SECRET }} -var git_token=${{ secrets.GIT_TOKEN }}
+
+      - name: Terraform Validate
+        run: cd github && terraform validate -no-color
+
+      - name: Terraform Plan
+        run: cd github &&  terraform plan -var aws_key=${{ secrets.AWS_KEY }} -var aws_secret=${{ secrets.AWS_SECRET }} -var git_token=${{ secrets.GIT_TOKEN }} -no-color
+  deploy:
+    needs: build
+    name: "Deploy Github"
+    environment:
+      name: production
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        name: Checkout Code
+
+      - uses: hashicorp/setup-terraform@v1
+        name: Install terraform
+
+      - name: Terraform Init
+        run: cd github &&  terraform init -var aws_key=${{ secrets.AWS_KEY }} -var aws_secret=${{ secrets.AWS_SECRET }} -var git_token=${{ secrets.GIT_TOKEN }}
+
+      - name: Terraform apply
+        run: cd github  && terraform apply -var aws_key=${{ secrets.AWS_KEY }} -var aws_secret=${{ secrets.AWS_SECRET }} -var git_token=${{ secrets.GIT_TOKEN }} -auto-approve
