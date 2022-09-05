@@ -1,0 +1,102 @@
+name: "Build"
+on:
+  workflow_dispatch:
+    inputs:
+      logLevel:
+        description: "Build Type"
+        required: true
+        default: "manual"
+
+env:
+  NODE_VERSION: 14.x
+  CI: true
+  REGION: "ap-southeast-1"
+  SERVICE: "ISELLPro-front-end"
+  BUCKET: "isellpro-backend"
+  SERVICE_ID: "frontend-service"
+  APP_VERSION: "ISELLPro-front-end-ver-${{ github.sha }}"
+  DEPLOY_ARTIFACT: "frontend-service-artifacts-${{ github.sha }}"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_ACCESS_SECRET }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v1
+        with:
+          node-version: 14.x
+
+      - uses: actions/cache@v2.1.5
+        with:
+          path: "**/node_modules"
+          key: ${{ runner.os }}-modules-${{ hashFiles('**/yarn.lock') }}
+
+      - name: Install dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          yarn install --frozen-lockfile
+      - name: write env values
+        id: envwrite
+        run: |
+          node config/writeVersion.js 1.0.${{github.run_number}}
+      - name: Build
+        run: |
+          yarn packci:build
+
+      - name: Upload Artifacts
+        id: upload-artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: frontend-artifacts
+          path: |
+            ./server/
+
+          retention-days: 1
+      - name: Zip packages
+        run: |
+          cd server
+          zip -r ${{env.DEPLOY_ARTIFACT}} .
+          mv ${{env.DEPLOY_ARTIFACT}}.zip ../
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_ACCESS_SECRET }}
+          aws-region: ${{ env.REGION }}
+
+      - name: Upload package to S3 bucket
+        run: aws s3 cp ${{env.DEPLOY_ARTIFACT}}.zip s3://${{env.BUCKET}}/${{env.SERVICE_ID}}/
+
+  deploy:
+    needs:
+      - build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - env: "STAGE"
+            project: "ISELLPRO-FRONT-END-STAGE"
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_ACCESS_SECRET }}
+          aws-region: ${{ env.REGION }}
+
+      - name: Create new ElasticBeanstalk Application Version
+        run: |
+          aws elasticbeanstalk create-application-version \
+          --application-name ${{env.SERVICE}} \
+          --source-bundle S3Bucket=${{env.BUCKET}},S3Key=${{env.SERVICE_ID}}/${{env.DEPLOY_ARTIFACT}}.zip \
+          --version-label ${{env.APP_VERSION}} \
+          --description "commit-sha-${{ github.sha }}"
+      - name: Deploy  ElasticBeanstalk Application Version
+        run: aws elasticbeanstalk update-environment --environment-name ${{ matrix.project }} --version-label ${{env.APP_VERSION}}
