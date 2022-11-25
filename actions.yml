@@ -1,0 +1,92 @@
+---
+name: "Backend Micro Service CD"
+description: "Composite GitHub Action for Backend Micro Service CD"
+
+inputs:
+  Region: 
+  description: "Deployment Region"
+  required: true
+  ECR_REPOSITORY_NAME: 
+  description: "ECR Repo Name"
+  required: true
+  ECS_SERVICE: 
+  description: "Deployment Service"
+  required: true
+  ECS_CLUSTER: 
+  description: "Cluster Name"
+  required: true
+  ECS_TASK_DEFINITION: 
+  description: "Deployment Task Definition"
+  required: true
+  ECS_CONTAINER_NAME: 
+  description: "Container Name"
+  required: true
+  AWS_ACCESS_KEY: 
+  description: "AWS Auth Key"
+  required: true
+  AWS_ACCESS_SECRET: 
+  description: "AWS Auth Secret"
+  required: true
+  Matrix_Environment:
+  description: "Matrix Env"
+  required: true
+runs:
+  using: "composite"
+  steps:
+      - name: Configure AWS credentials
+        id: cred
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ inputs.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ inputs.AWS_ACCESS_SECRET }}
+          aws-region: ${{ inputs.REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build, tag, and push image to Amazon ECR
+        shell: bash
+        id: build-image
+        inputs:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ inputs.ECR_REPOSITORY_NAME }}
+          IMAGE_TAG: latest
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
+      - name: Download task definition
+        shell: bash
+        id: task
+        run: |
+          aws ecs describe-task-definition --task-definition ${{inputs.ECS_TASK_DEFINITION}}-${{ matrix.inputsironment }} --query taskDefinition > task-definition.json
+
+      - name: Fill in the new image ID in the Amazon ECS task definition
+        shell: bash
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: ${{inputs.ECS_CONTAINER_NAME}}-${{ inputs.Matrix_Environment }} # edit me
+          image: ${{ steps.build-image.outputs.image }}
+          inputsironment-variables: |
+            LOG_LEVEL=info
+            inputsIRONMENT=prod
+            LOGGER=console
+            PORT=8080
+            AWS_REGION=${{ inputs.REGION }}
+            IMAGE_TAG=${{ github.sha }}
+            RANGE_SERVICE=${{ inputs.RANGE_SERVICE }}
+            USEXRAY=true
+      - name: Deploy Amazon ECS task definition
+        id: deploy-def
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ inputs.ECS_SERVICE }}-${{ inputs.Matrix_Environment }}
+          cluster: ${{ inputs.ECS_CLUSTER }}-${{ inputs.Matrix_Environment }}
+          wait-for-service-stability: true
+ 
+  
