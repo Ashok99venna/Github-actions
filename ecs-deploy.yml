@@ -15,6 +15,10 @@ env:
   ECS_CLUSTER: "isellpro"
   ECS_TASK_DEFINITION: "order-service-task"
   ECS_CONTAINER_NAME: "order-service-container"
+  AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
+  AWS_ACCESS_SECRET: ${{ secrets.AWS_ACCESS_SECRET }}
+  
+  
 jobs:
   ci:
     name: "Integration"
@@ -74,17 +78,8 @@ jobs:
         
       - name: AWS ECS CD
         id: deploy
-        uses: ./.github/github-actions/frontend-cd
-        with:
-          Region: ${{ env.REGION }}
-          ECR_REPOSITORY_NAME: ${{ env.ECR_REPOSITORY_NAME }}
-          ECS_SERVICE: ${{ env.ECS_SERVICE }}
-          ECS_CLUSTER: ${{ env.ECS_CLUSTER }}
-          ECS_TASK_DEFINITION: ${{ env.ECS_TASK_DEFINITION }}
-          ECS_CONTAINER_NAME: ${{ env.ECS_CONTAINER_NAME }]
-          AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
-          AWS_ACCESS_SECRET: ${[ secrets.AWS_ACCESS_SECRET }}
-          Matrix_Environment: ${{ matrix.environment }}
+        uses: ./.github/github-actions/Backend-cd
+   
   
 
       - name: checkout notification action
