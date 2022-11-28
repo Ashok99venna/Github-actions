@@ -18,7 +18,7 @@ runs:
         uses: aws-actions/amazon-ecr-login@v1
 
       - name: Build, tag, and push image to Amazon ECR
-        shell: bash
+        
         id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -28,12 +28,14 @@ runs:
           docker build -t ${{ env.ECR_REGISTRY/$ECR_REPOSITORY }}:${{ IMAGE_TAG }} .
           docker push ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
           echo "::set-output name=image::${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}"
+        shell: bash
 
       - name: Download task definition
-        shell: bash
+        
         id: task
         run: |
           aws ecs describe-task-definition --task-definition ${{env.ECS_TASK_DEFINITION}}-${{ matrix.inputsironment }} --query taskDefinition > task-definition.json
+        shell: bash  
 
       - name: Fill in the new image ID in the Amazon ECS task definition
         id: task-def
@@ -51,6 +53,7 @@ runs:
             IMAGE_TAG=${{ github.sha }}
             RANGE_SERVICE=${{ env.RANGE_SERVICE }}
             USEXRAY=true
+            
       - name: Deploy Amazon ECS task definition
         id: deploy-def
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
