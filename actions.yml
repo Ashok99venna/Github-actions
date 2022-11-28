@@ -2,6 +2,11 @@
 name: "Backend Micro Service CD"
 description: "Composite GitHub Action for Backend Micro Service CD"
 
+inputs:
+  ECR_REPOSITORY_NAME:
+  description: "ECR Repo Name"
+  required: false
+
 runs:
   using: "composite"
   steps:
