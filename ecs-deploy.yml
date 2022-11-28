@@ -79,6 +79,9 @@ jobs:
       - name: AWS ECS CD
         id: deploy
         uses: ./.github/github-actions/Backend-cd
+        with:
+          ECR_REPOSITORY_NAME: ${{ env.ECR_REPOSITORY_NAME }}
+          
    
   
 
